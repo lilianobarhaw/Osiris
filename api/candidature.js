@@ -6,7 +6,7 @@ import { env, json, readSession, bot } from "../lib/discord.js";
 const LIMITS = { age: 3, exp: 40, stream: 120, name: 60, role: 60, story: 2000, q1: 1000, q2: 1000 };
 
 // Permissions Discord (bits)
-const VIEW = 1024n, SEND = 2048n, EMBED = 16384n, ATTACH = 32768n, HISTORY = 65536n, MANAGE_MSG = 8192n;
+const VIEW = 1024n, SEND = 2048n, EMBED = 16384n, HISTORY = 65536n;
 const bits = (...p) => p.reduce((a, b) => a | b, 0n).toString();
 
 function clean(v, max) {
@@ -68,15 +68,16 @@ export async function POST(req) {
       topic: `Candidature de @${user.username} (${user.id}) · Programme 01`,
       permission_overwrites: [
         { id: guild, type: 0, deny: bits(VIEW) },
-        { id: user.id, type: 1, allow: bits(VIEW, SEND, HISTORY, ATTACH) },
-        { id: staff, type: 0, allow: bits(VIEW, SEND, HISTORY, ATTACH, MANAGE_MSG) },
+        { id: user.id, type: 1, allow: bits(VIEW, SEND, HISTORY) },
+        { id: staff, type: 0, allow: bits(VIEW, SEND, HISTORY) },
         { id: botId, type: 1, allow: bits(VIEW, SEND, HISTORY, EMBED) },
       ],
     }),
   });
   if (!chanRes.ok) {
-    const detail = await chanRes.text();
-    return json({ error: `Impossible d'ouvrir le ticket (code ${chanRes.status}). Vérifie que tu as bien rejoint le serveur Osiris.`, detail: detail.slice(0, 300) }, 502);
+    let why = "";
+    try { const e = await chanRes.json(); why = e.message ? ` : ${e.message}` : ""; } catch {}
+    return json({ error: `Impossible d'ouvrir le ticket (code ${chanRes.status}${why}). Vérifie les permissions du bot sur le serveur et sur la catégorie.` }, 502);
   }
   const channel = await chanRes.json();
 
