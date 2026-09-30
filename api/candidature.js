@@ -27,7 +27,11 @@ function slug(s) {
 export function GET() {
   const need = ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "DISCORD_BOT_TOKEN", "DISCORD_GUILD_ID", "DISCORD_TICKET_CATEGORY_ID", "DISCORD_STAFF_ROLE_ID", "SESSION_SECRET", "SITE_URL"];
   const missing = need.filter((k) => !process.env[k]);
-  return json({ fonction: "OK", variables: missing.length ? "MANQUANTES : " + missing.join(", ") : "OK : toutes les variables sont configurées" });
+  return json({
+    fonction: "OK",
+    variables: missing.length ? "MANQUANTES : " + missing.join(", ") : "OK : toutes les variables sont configurées",
+    role_postulant: process.env.DISCORD_POSTULANT_ROLE_ID ? "activé" : "désactivé (variable DISCORD_POSTULANT_ROLE_ID absente)",
+  });
 }
 
 export async function POST(req) {
@@ -81,6 +85,17 @@ export async function POST(req) {
   }
   const channel = await chanRes.json();
 
+  // Rôle « Postulant » donné automatiquement (facultatif : ignoré si la variable n'existe pas).
+  let roleWarning = "";
+  const postulant = (process.env.DISCORD_POSTULANT_ROLE_ID || "").trim();
+  if (postulant) {
+    const roleRes = await bot(`/guilds/${guild}/members/${user.id}/roles/${postulant}`, {
+      method: "PUT",
+      headers: { "X-Audit-Log-Reason": "Candidature envoyée depuis le site Osiris" },
+    });
+    if (!roleRes.ok) roleWarning = `\n⚠️ Le rôle Postulant n'a pas pu être donné (code ${roleRes.status}). Vérifie que le bot a « Gérer les rôles » et que son rôle est au-dessus de Postulant.`;
+  }
+
   const embed = {
     title: `Candidat n° ${numero} · ${f.name}`,
     color: 0xc4a265,
@@ -102,7 +117,7 @@ export async function POST(req) {
   await bot(`/channels/${channel.id}/messages`, {
     method: "POST",
     body: JSON.stringify({
-      content: `<@${user.id}>, ta candidature est bien arrivée. Le staff te répondra ici. <@&${staff}>`,
+      content: `<@${user.id}>, ta candidature est bien arrivée. Le staff te répondra ici. <@&${staff}>${roleWarning}`,
       embeds: [embed],
       allowed_mentions: { users: [user.id], roles: [staff] },
     }),

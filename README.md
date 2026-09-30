@@ -19,7 +19,8 @@ Site du serveur GTA RP Osiris : œil d'Horus animé, compte à rebours du Progra
 2. Il revient sur le site, connecté, et il est ajouté au serveur Osiris s'il n'y était pas.
 3. Il remplit le dossier et le soumet.
 4. Un salon `candidature-<numéro>-<pseudo>` est créé dans la catégorie des tickets, visible seulement par lui, le staff et le bot. Le dossier y est posté, avec une mention du candidat et du rôle staff.
-5. Un seul ticket par candidat : s'il en a déjà un, le site lui donne le lien vers celui-ci.
+5. Il reçoit le rôle « Postulant » si la variable `DISCORD_POSTULANT_ROLE_ID` est configurée. Le bot doit avoir la permission « Gérer les rôles », et son rôle doit être placé au-dessus de Postulant.
+6. Un seul ticket par candidat : s'il en a déjà un, le site lui donne le lien vers celui-ci.
 
 ## Préparer Discord
 
@@ -42,6 +43,7 @@ Site du serveur GTA RP Osiris : œil d'Horus animé, compte à rebours du Progra
 | `DISCORD_STAFF_ROLE_ID` | Identifiant du rôle staff |
 | `SESSION_SECRET` | Une longue phrase aléatoire (32 caractères ou plus) |
 | `SITE_URL` | Adresse du site sans `/` final, ex. `https://osiris-rp.vercel.app` |
+| `DISCORD_POSTULANT_ROLE_ID` | Facultatif. Identifiant du rôle « Postulant », donné automatiquement à chaque candidat qui envoie un dossier |
 
 Redéployer après chaque modification des variables. Vérification : ouvrir `https://<ton-domaine>/api/candidature` → doit afficher « toutes les variables sont configurées ».
 
