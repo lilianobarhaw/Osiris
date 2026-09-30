@@ -11,6 +11,9 @@ Site du serveur GTA RP Osiris : œil d'Horus animé, compte à rebours du Progra
 - `api/auth/logout.js` : ferme la session.
 - `api/me.js` : dit à la page si le joueur est connecté.
 - `api/candidature.js` : `GET` = diagnostic des variables ; `POST` = crée le ticket.
+- `api/interactions.js` : tickets d'aide (bouton, menu des catégories, fenêtre, salon privé, fermeture).
+- `api/panel.js` : publie le message « Créer un ticket » dans le salon d'aide.
+- `lib/aide.js` : la liste des catégories d'aide et le texte du panneau (à modifier ici).
 - `package.json` : `"type": "module"`.
 
 ## Parcours du candidat
@@ -43,11 +46,23 @@ Site du serveur GTA RP Osiris : œil d'Horus animé, compte à rebours du Progra
 | `DISCORD_STAFF_ROLE_ID` | Identifiant du rôle staff |
 | `SESSION_SECRET` | Une longue phrase aléatoire (32 caractères ou plus) |
 | `SITE_URL` | Adresse du site sans `/` final, ex. `https://osiris-rp.vercel.app` |
+| `DISCORD_PUBLIC_KEY` | Public Key de l'application (onglet General Information), pour les tickets d'aide |
+| `DISCORD_ADMIN_ROLE_ID` | Identifiant du rôle Admin : seuls les admins voient les tickets « Problème avec le staff » |
+| `DISCORD_HELP_CATEGORY_ID` | Facultatif. Catégorie Discord des tickets d'aide (sinon, celle des candidatures) |
+| `SETUP_KEY` | Un mot de passe de ton choix, pour publier le panneau d'aide |
 | `DISCORD_POSTULANT_ROLE_ID` | Facultatif. Identifiant du rôle « Postulant », donné automatiquement à chaque candidat qui envoie un dossier |
 
 Redéployer après chaque modification des variables. Vérification : ouvrir `https://<ton-domaine>/api/candidature` → doit afficher « toutes les variables sont configurées ».
 
 L'ancienne variable `DISCORD_WEBHOOK` n'est plus utilisée.
+
+## Tickets d'aide
+
+1. Ajouter les variables `DISCORD_PUBLIC_KEY`, `DISCORD_ADMIN_ROLE_ID`, `SETUP_KEY` (et si besoin `DISCORD_HELP_CATEGORY_ID`), puis redéployer.
+2. Sur https://discord.com/developers/applications → l'application → **General Information** → **Interactions Endpoint URL** : `https://<ton-domaine>/api/interactions` → Save. Discord vérifie l'adresse tout de suite.
+3. Ouvrir une fois `https://<ton-domaine>/api/panel?key=<SETUP_KEY>&channel=<identifiant du salon d'aide>` : le message « Créer un ticket » apparaît dans le salon.
+4. Parcours : bouton « Créer un ticket » → menu des catégories → fenêtre « Explique ton problème » → salon privé avec le staff. Les tickets « Problème avec le staff » ne sont visibles que par le rôle Admin. Un seul ticket ouvert par personne et par catégorie. Le bouton « Fermer le ticket » supprime le salon (staff ou auteur).
+5. Diagnostic : `https://<ton-domaine>/api/interactions`.
 
 ## Sécurité
 
@@ -56,6 +71,7 @@ L'ancienne variable `DISCORD_WEBHOOK` n'est plus utilisée.
 - La connexion Discord est protégée par un paramètre `state` (anti-CSRF).
 - Les champs sont nettoyés et tronqués ; les mentions sont limitées au candidat et au rôle staff.
 - Champ piège anti-robots (`site`), ignoré s'il est rempli.
+- Les tickets d'aide vérifient la signature Discord de chaque requête (clé publique Ed25519).
 
 ## Jeu de piste (réservé au staff)
 
