@@ -16,9 +16,6 @@ Site du serveur GTA RP Osiris : œil d'Horus animé, compte à rebours du Progra
 - `lib/aide.js` : la liste des catégories d'aide et le texte du panneau (à modifier ici).
 - `lib/commandes.js` : les commandes slash et les textes de résultat du casting.
 - `api/commands.js` : envoie la liste des commandes slash à Discord.
-- `lib/moderation.js` : les commandes de modération et les paliers de sanctions automatiques (à modifier ici).
-- `lib/logs.js` : le journal des commandes (qui, quoi, où, quand).
-- `lib/antispam.js` et `api/antispam.js` : les règles antispam (AutoMod de Discord) et leur installation.
 - `package.json` : `"type": "module"`.
 
 ## Parcours du candidat
@@ -59,9 +56,6 @@ Site du serveur GTA RP Osiris : œil d'Horus animé, compte à rebours du Progra
 | `DISCORD_REMPLACANT_ROLE_ID` | Facultatif. Rôle « Remplaçant », donné par `/casting resultat:Liste d'attente` |
 | `DISCORD_MECENE_ROLE_ID` | Facultatif. Rôle « Mécène », donné par `/casting resultat:Non retenu` |
 | `DISCORD_POSTULANT_ROLE_ID` | Facultatif. Identifiant du rôle « Postulant », donné automatiquement à chaque candidat qui envoie un dossier |
-| `DISCORD_FONDATEUR_ROLE_ID` | Identifiant du rôle Fondateur : avec le rôle Admin, le seul autorisé à utiliser les commandes du bot |
-| `DISCORD_LOGS_CHANNEL_ID` | Identifiant du salon privé `#logs-commandes` : qui a utilisé quelle commande du bot, tickets ouverts et fermés, annonces |
-| `DISCORD_SANCTIONS_CHANNEL_ID` | Identifiant du salon privé des sanctions : historique, compteur d'avertissements et alertes de l'antispam |
 
 Redéployer après chaque modification des variables. Vérification : ouvrir `https://<ton-domaine>/api/candidature` → doit afficher « toutes les variables sont configurées ».
 
@@ -79,12 +73,11 @@ L'ancienne variable `DISCORD_WEBHOOK` n'est plus utilisée.
 
 1. Il faut que les tickets d'aide soient déjà branchés (`DISCORD_PUBLIC_KEY` et Interactions Endpoint URL).
 2. Ouvrir une fois `https://<ton-domaine>/api/commands?key=<SETUP_KEY>` : les commandes apparaissent sur le serveur Osiris. À refaire après chaque modification de `lib/commandes.js`.
-3. Toutes les commandes sont réservées aux fondateurs et aux admins. Discord ne les affiche qu'aux membres qui ont la permission **Administrateur** ; pour un rôle qui ne l'a pas : Paramètres du serveur → Intégrations → Osiris → autoriser le rôle. Le bot vérifie en plus le rôle (Administrateur, `DISCORD_FONDATEUR_ROLE_ID` ou `DISCORD_ADMIN_ROLE_ID`).
-4. Commandes :
-   - `/annonce` : fenêtre titre + message, publiée aux couleurs d'Osiris dans le salon. Option `ping` pour @everyone.
-   - `/aide-panneau` : publie le bouton « Créer un ticket » dans le salon.
+3. Commandes :
+   - `/annonce` (staff) : fenêtre titre + message, publiée aux couleurs d'Osiris dans le salon. Option `ping` pour @everyone.
+   - `/aide-panneau` (staff) : publie le bouton « Créer un ticket » dans le salon.
    - `/fermer` : ferme le ticket où on la tape. Ticket d'aide : staff ou auteur. Ticket de candidature : staff seulement.
-   - `/casting resultat:…` (dans un ticket de candidature) : publie le résultat au candidat, donne le rôle correspondant et retire le rôle Postulant.
+   - `/casting resultat:…` (staff, dans un ticket de candidature) : publie le résultat au candidat, donne le rôle correspondant et retire le rôle Postulant.
 4. Les commandes staff ne sont visibles que pour ceux qui ont la permission « Gérer les messages ». Pour changer qui les voit : Paramètres du serveur → Intégrations → Osiris. Le bot vérifie aussi que la personne a le rôle Staff ou Admin.
 
 ## Sécurité
@@ -103,39 +96,3 @@ Réponses, dans l'ordre : `0333`, `CANDIDAT17`, `LUDENDORFF`. Code final : `THOT
 ## Offre Vercel
 
 L'offre gratuite (Hobby) est réservée à un usage non commercial. Les dons ne comptent pas comme usage commercial.
-
-## Modération
-
-Le bot a besoin de : Exclure temporairement des membres, Expulser des membres, Bannir des membres, Gérer les messages, Gérer les salons. Son rôle doit être placé au-dessus des rôles des joueurs. Créer un salon privé « sanctions » (visible par la direction et le bot) et mettre son identifiant dans `DISCORD_SANCTIONS_CHANNEL_ID`.
-
-- `/warn membre raison` : avertissement. Le membre reçoit un message privé avec la raison, son nombre d'avertissements et le prochain palier.
-- Paliers automatiques (`SEUILS` dans `lib/moderation.js`) : 3 avertissements = mute 1 heure, 5 = mute 24 heures, 7 = bannissement.
-- `/unwarn membre` : retire un avertissement (l'historique est gardé).
-- `/sanctions membre` : historique et nombre d'avertissements actifs.
-- `/mute membre duree raison` et `/unmute membre` : mute Discord (10 minutes à 7 jours), avec message privé.
-- `/kick membre raison` : expulsion (il peut revenir avec une invitation), avec message privé.
-- `/ban membre raison` (option : supprimer ses messages des dernières 24 h) et `/unban identifiant`.
-- `/clear nombre` (option : seulement les messages d'un membre) : supprime jusqu'à 100 messages de moins de 14 jours.
-- `/slowmode delai` : mode lent du salon (désactivé à 1 heure).
-
-Chaque sanction est écrite dans le salon des sanctions : c'est là que le bot compte les avertissements (500 derniers messages du salon). Les membres de l'équipe (Fondateur, Admin, Staff) ne peuvent pas être sanctionnés par le bot. Après une modification de `lib/moderation.js`, rouvrir `/api/commands?key=<SETUP_KEY>`.
-
-## Antispam
-
-Installé une fois en ouvrant `https://<ton-domaine>/api/antispam?key=<SETUP_KEY>` (le bot doit avoir « Gérer le serveur » et « Exclure temporairement des membres »). Ce sont des règles AutoMod de Discord : elles tournent 24 h sur 24, même quand le bot ne fait rien.
-
-| Règle | Action |
-| --- | --- |
-| Mentions en masse (5 mentions ou plus dans un message, raid de mentions) | message bloqué, alerte, mute 10 minutes |
-| Liens d'invitation vers d'autres serveurs | message bloqué, alerte, mute 10 minutes |
-| Arnaques (faux Nitro, faux liens Steam ou Discord) | message bloqué, alerte, mute 1 heure |
-| Spam détecté par Discord | message bloqué, alerte |
-| Insultes graves (liste de Discord) | message bloqué, alerte |
-
-Les alertes arrivent dans le salon des sanctions. L'équipe n'est jamais bloquée. Tout se modifie ensuite dans Paramètres du serveur → AutoMod (ajouter des mots interdits, changer une durée). Le flood pur (beaucoup de messages en quelques secondes) n'est pas détecté par AutoMod : utiliser `/slowmode` sur le salon concerné.
-
-## Journal
-
-Avec `DISCORD_LOGS_CHANNEL_ID`, le bot note dans ce salon : chaque commande utilisée (qui, laquelle, dans quel salon, avec quelles options), les tentatives refusées, les tickets ouverts et fermés, les annonces publiées.
-
-Les messages supprimés ou modifiés, les arrivées et départs et les actions faites à la main ne passent pas par le site : Discord ne les envoie qu'à un programme connecté en permanence. C'est le rôle du dossier séparé `osiris-logs` (voir son LISEZMOI).

@@ -4,16 +4,12 @@
 //   2. Choix d'une catégorie → petite fenêtre « Explique ton problème »
 //   3. Envoi                 → salon privé créé, staff (ou admins) mentionnés
 //   4. « Fermer le ticket »  → salon supprimé (staff ou auteur du ticket)
-// Et les commandes slash, réservées aux fondateurs et aux admins :
-//   /annonce, /aide-panneau, /fermer, /casting (lib/commandes.js)
-//   /warn, /unwarn, /sanctions, /mute, /unmute, /kick, /ban, /unban, /clear, /slowmode (lib/moderation.js)
+// Et les commandes slash : /annonce, /aide-panneau, /fermer, /casting (voir lib/commandes.js).
 
 import { createPublicKey, verify } from "node:crypto";
-import { env, json, bot, optEnv, isDirection, isTeam, editOriginal, keepAlive, sleep } from "../lib/discord.js";
+import { env, json, bot } from "../lib/discord.js";
 import { CATEGORIES, panelMessage } from "../lib/aide.js";
 import { CASTING } from "../lib/commandes.js";
-import { moderation, isModCommand } from "../lib/moderation.js";
-import { logEvent, logCommand } from "../lib/logs.js";
 
 const VIEW = 1024n, SEND = 2048n, EMBED = 16384n, ATTACH = 32768n, HISTORY = 65536n;
 const bits = (...p) => p.reduce((a, b) => a | b, 0n).toString();
@@ -39,51 +35,41 @@ function checkSignature(body, signature, timestamp) {
 
 const reply = (content, extra = {}) => json({ type: 4, data: { content, flags: EPHEMERAL, allowed_mentions: { parse: [] }, ...extra } });
 const update = (content) => json({ type: 7, data: { content, components: [], embeds: [] } });
-const DIRECTION_ONLY = "Les commandes d'Osiris sont réservées aux fondateurs et aux admins.";
+
+
+const optEnv = (k) => (process.env[k] || "").trim();
+
+function isStaff(i) {
+  const roles = i.member?.roles || [];
+  const perms = BigInt(i.member?.permissions || "0");
+  const staff = optEnv("DISCORD_STAFF_ROLE_ID"), admin = optEnv("DISCORD_ADMIN_ROLE_ID");
+  return (perms & 8n) === 8n || (staff && roles.includes(staff)) || (admin && roles.includes(admin));
+}
 
 // Ferme un ticket d'aide (staff ou auteur) ou de candidature (staff seulement).
 async function closeTicket(i, user) {
   const chRes = await bot(`/channels/${i.channel_id}`);
-  const ch = chRes.ok ? await chRes.json() : {};
-  const topic = ch.topic || "";
+  const topic = chRes.ok ? (await chRes.json()).topic || "" : "";
   const aide = topic.includes("[aide:"), candidature = topic.startsWith("Candidature de");
   if (!aide && !candidature) return reply("Ce salon n'est pas un ticket.");
   const auteur = aide && topic.includes(user.id);
-  if (!isTeam(i.member) && !auteur) return reply(candidature ? "Seul le staff peut fermer un ticket de candidature." : "Seuls le staff et l'auteur du ticket peuvent le fermer.");
-  const del = await bot(`/channels/${i.channel_id}`, { method: "DELETE", headers: { "X-Audit-Log-Reason": `Ticket fermé par @${user.username}` } });
-  if (del.ok) {
-    const owner = (topic.match(/\b(\d{17,20})\b/) || [])[1]; // l'identifiant de l'auteur est noté dans le sujet du salon
-    await logEvent({
-      title: "Ticket fermé",
-      description: `<@${user.id}> a fermé le ticket **#${ch.name || "?"}**${owner ? ` (ticket de <@${owner}>)` : ""}`,
-      color: 0x5a9a6e,
-      user,
-    });
-  }
+  if (!isStaff(i) && !auteur) return reply(candidature ? "Seul le staff peut fermer un ticket de candidature." : "Seuls le staff et l'auteur du ticket peuvent le fermer.");
+  await bot(`/channels/${i.channel_id}`, { method: "DELETE", headers: { "X-Audit-Log-Reason": `Ticket fermé par @${user.username}` } });
   return null;
 }
 
 async function command(i, user) {
   const name = i.data.name;
   const opt = (k) => (i.data.options || []).find((o) => o.name === k)?.value;
-  if (!isDirection(i.member)) return reply(DIRECTION_ONLY);
-
-  // Modération : si c'est rapide (presque toujours), réponse directe ;
-  // sinon Discord affiche « Osiris réfléchit… » et la réponse arrive dès que c'est fini.
-  if (isModCommand(name)) {
-    const work = moderation(i, user).catch((e) => "Erreur : " + (e?.message || "inconnue"));
-    const fast = await Promise.race([work, sleep(2200).then(() => null)]);
-    if (fast !== null) return reply(fast);
-    keepAlive(work.then((content) => editOriginal(i, content)));
-    return json({ type: 5, data: { flags: EPHEMERAL } });
-  }
 
   if (name === "aide-panneau") {
+    if (!isStaff(i)) return reply("Commande réservée au staff.");
     const r = await bot(`/channels/${i.channel_id}/messages`, { method: "POST", body: JSON.stringify(panelMessage()) });
     return reply(r.ok ? "Le panneau d'aide est publié." : `Impossible de publier ici (code ${r.status}).`);
   }
 
   if (name === "annonce") {
+    if (!isStaff(i)) return reply("Commande réservée au staff.");
     return json({
       type: 9,
       data: {
@@ -100,6 +86,7 @@ async function command(i, user) {
   if (name === "fermer") return (await closeTicket(i, user)) || reply("Ticket fermé.");
 
   if (name === "casting") {
+    if (!isStaff(i)) return reply("Commande réservée au staff.");
     const chRes = await bot(`/channels/${i.channel_id}`);
     const topic = chRes.ok ? (await chRes.json()).topic || "" : "";
     const m = topic.match(/^Candidature de .*\((\d{17,20})\)/);
@@ -138,20 +125,16 @@ export async function POST(req) {
   if (i.type === 1) return json({ type: 1 }); // PING de vérification de Discord
 
   const user = i.member?.user || i.user;
+  const roles = i.member?.roles || [];
   const id = i.data?.custom_id || "";
 
   try {
     // Commandes slash
-    if (i.type === 2) {
-      const refused = !isDirection(i.member);
-      const skip = i.data.name === "annonce" && !refused; // l'annonce est notée quand elle est publiée
-      const [res] = await Promise.all([command(i, user), skip ? null : logCommand(i, user, refused)]);
-      return res;
-    }
+    if (i.type === 2) return await command(i, user);
 
     // Fenêtre de /annonce envoyée → message publié dans le salon
     if (i.type === 5 && id.startsWith("annonce_envoi:")) {
-      if (!isDirection(i.member)) return reply(DIRECTION_ONLY);
+      if (!isStaff(i)) return reply("Commande réservée au staff.");
       const val = (k) => i.data.components.flatMap((r) => r.components).find((c) => c.custom_id === k)?.value || "";
       const ping = id.endsWith(":1");
       const r = await bot(`/channels/${i.channel_id}/messages`, {
@@ -162,7 +145,6 @@ export async function POST(req) {
           embeds: [{ title: val("titre"), description: val("texte"), color: COLOR, footer: { text: "Osiris" } }],
         }),
       });
-      if (r.ok) await logEvent({ title: "Annonce publiée", description: `<@${user.id}> a publié **${val("titre").slice(0, 200)}** dans <#${i.channel_id}>${ping ? " (avec @everyone)" : ""}`, user });
       return reply(r.ok ? "Annonce publiée." : `Impossible de publier ici (code ${r.status}).`);
     }
 
@@ -270,7 +252,6 @@ export async function POST(req) {
         }),
       });
 
-      await logEvent({ title: "Ticket ouvert", description: `<@${user.id}> a ouvert un ticket **${cat.emoji} ${cat.label}** : <#${channel.id}>`, user });
       return reply(`Ton ticket est ouvert : <#${channel.id}>`);
     }
 
@@ -286,15 +267,11 @@ export async function POST(req) {
 // Diagnostic : ouvrir /api/interactions dans le navigateur.
 export function GET() {
   const need = ["DISCORD_PUBLIC_KEY", "DISCORD_BOT_TOKEN", "DISCORD_CLIENT_ID", "DISCORD_STAFF_ROLE_ID", "SETUP_KEY"];
-  const has = (k) => !!optEnv(k);
   const missing = need.filter((k) => !(process.env[k] || "").trim());
   return json({
     fonction: "OK",
     variables: missing.length ? "MANQUANTES : " + missing.join(", ") : "OK",
     categorie_des_tickets: process.env.DISCORD_HELP_CATEGORY_ID ? "DISCORD_HELP_CATEGORY_ID" : "même catégorie que les candidatures",
-    plaintes_staff: has("DISCORD_ADMIN_ROLE_ID") ? "réservées au rôle Admin" : "ATTENTION : DISCORD_ADMIN_ROLE_ID absent, tout le staff les verra",
-    commandes: "réservées à la permission Administrateur" + (has("DISCORD_FONDATEUR_ROLE_ID") ? ", au rôle Fondateur" : "") + (has("DISCORD_ADMIN_ROLE_ID") ? " et au rôle Admin" : ""),
-    salon_des_logs: has("DISCORD_LOGS_CHANNEL_ID") ? "OK" : "ATTENTION : DISCORD_LOGS_CHANNEL_ID absent, les commandes ne sont pas notées",
-    salon_des_sanctions: has("DISCORD_SANCTIONS_CHANNEL_ID") ? "OK" : "ATTENTION : DISCORD_SANCTIONS_CHANNEL_ID absent, les avertissements ne sont pas comptés",
+    plaintes_staff: process.env.DISCORD_ADMIN_ROLE_ID ? "réservées au rôle Admin" : "ATTENTION : DISCORD_ADMIN_ROLE_ID absent, tout le staff les verra",
   });
 }
