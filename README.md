@@ -1,10 +1,11 @@
 # Site Osiris — notes pour le dev (Vercel)
 
-Site du serveur GTA RP Osiris : œil d'Horus animé, compte à rebours du Programme 01, jeu de piste (terminal « Accès candidat ») et casting. Pour candidater, le joueur se connecte avec Discord ; sa candidature ouvre un ticket privé sur le serveur Osiris.
+Site du serveur GTA RP Osiris : logo de l'œil (dessin de l'artiste) avec une animation d'ouverture « OSIRIS RP », compte à rebours du Programme 01, jeu de piste (terminal « Accès candidat ») et casting. Pour candidater, le joueur se connecte avec Discord ; sa candidature ouvre un ticket privé sur le serveur Osiris.
 
 ## Fichiers
 
 - `index.html` : toute la page (HTML, CSS et JS dans un seul fichier).
+- `img/` : le logo d'Osiris (dessin de l'artiste, non retouché) : `oeil.webp` / `oeil.png` pour la page, `favicon.png` et `apple-touch-icon.png` pour l'onglet et les téléphones, `og.png` pour l'aperçu des liens sur Discord et les réseaux. Si l'adresse du site change, modifier aussi la ligne `og:image` dans `index.html`.
 - `lib/discord.js` : sessions signées (cookie HttpOnly), cookies, appels à l'API Discord.
 - `api/auth/login.js` : redirige vers Discord (scopes `identify guilds.join`).
 - `api/auth/callback.js` : récupère le compte, ajoute le joueur au serveur Osiris, ouvre la session (6 h).
